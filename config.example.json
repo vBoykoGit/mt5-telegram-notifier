@@ -1,0 +1,9 @@
+{
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "common_files_path": "C:\\Users\\Admin\\AppData\\Roaming\\MetaQuotes\\Terminal\\Common\\Files",
+  "poll_interval_sec": 2,
+  "heartbeat_timeout_sec": 60,
+  "heartbeat_dead_sec": 120,
+  "processed_retention_days": 7
+}
