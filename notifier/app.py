@@ -19,7 +19,6 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Config in repo root (parent of notifier package)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = _REPO_ROOT / "config.json"
 MAX_LOG_LINES = 200
@@ -33,7 +32,7 @@ def load_config() -> dict:
         example = _REPO_ROOT / "config.example.json"
         if example.exists():
             shutil.copy(str(example), str(CONFIG_PATH))
-            log.info("Created config.json from config.example.json -- please fill in token and chat_id")
+            log.info("Created config.json from config.example.json")
     try:
         return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -232,31 +231,81 @@ class App(ctk.CTk):
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=0)
+        self.grid_rowconfigure(2, weight=1)
         self.grid_rowconfigure(3, weight=0)
+        self.grid_rowconfigure(4, weight=0)
 
+        # --- Settings frame ---
+        settings_frame = ctk.CTkFrame(self)
+        settings_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
+        settings_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            settings_frame, text="Токен бота:",
+            font=ctk.CTkFont(size=12), anchor="e", width=90,
+        ).grid(row=0, column=0, padx=(8, 4), pady=(6, 2), sticky="e")
+
+        self._token_entry = ctk.CTkEntry(
+            settings_frame, show="*",
+            placeholder_text="Вставьте токен Telegram-бота",
+        )
+        self._token_entry.grid(row=0, column=1, padx=4, pady=(6, 2), sticky="ew")
+
+        self._show_token_btn = ctk.CTkButton(
+            settings_frame, text="Показать", width=80, height=28,
+            command=self._toggle_token_visibility,
+        )
+        self._show_token_btn.grid(row=0, column=2, padx=(4, 8), pady=(6, 2))
+
+        ctk.CTkLabel(
+            settings_frame, text="Chat ID:",
+            font=ctk.CTkFont(size=12), anchor="e", width=90,
+        ).grid(row=1, column=0, padx=(8, 4), pady=(2, 6), sticky="e")
+
+        self._chatid_entry = ctk.CTkEntry(
+            settings_frame,
+            placeholder_text="Числовой ID чата или группы",
+        )
+        self._chatid_entry.grid(row=1, column=1, padx=4, pady=(2, 6), sticky="ew")
+
+        self._save_btn = ctk.CTkButton(
+            settings_frame, text="Сохранить", width=80, height=28,
+            command=self._save_settings,
+        )
+        self._save_btn.grid(row=1, column=2, padx=(4, 8), pady=(2, 6))
+
+        token = self._config.get("telegram_bot_token", "")
+        chat_id = self._config.get("telegram_chat_id", "")
+        if token:
+            self._token_entry.insert(0, token)
+        if chat_id:
+            self._chatid_entry.insert(0, str(chat_id))
+
+        # --- Terminals ---
         terminals_label = ctk.CTkLabel(
             self, text="Терминалы",
             font=ctk.CTkFont(size=14, weight="bold"), anchor="w",
         )
-        terminals_label.grid(row=0, column=0, sticky="nw", padx=12, pady=(8, 0))
+        terminals_label.grid(row=1, column=0, sticky="nw", padx=12, pady=(8, 0))
 
         self._terminal_panel = TerminalPanel(self, height=200)
-        self._terminal_panel.grid(row=0, column=0, sticky="nsew", padx=8, pady=(30, 4))
+        self._terminal_panel.grid(row=1, column=0, sticky="nsew", padx=8, pady=(30, 4))
 
+        # --- Event log ---
         log_label = ctk.CTkLabel(
             self, text="Лог событий",
             font=ctk.CTkFont(size=14, weight="bold"), anchor="w",
         )
-        log_label.grid(row=1, column=0, sticky="nw", padx=12, pady=(4, 0))
+        log_label.grid(row=2, column=0, sticky="nw", padx=12, pady=(4, 0))
 
         self._event_log = EventLogPanel(self, height=180)
-        self._event_log.grid(row=1, column=0, sticky="nsew", padx=8, pady=(30, 4))
+        self._event_log.grid(row=2, column=0, sticky="nsew", padx=8, pady=(30, 4))
 
+        # --- Telegram status bar ---
         tg_frame = ctk.CTkFrame(self, height=36)
-        tg_frame.grid(row=2, column=0, sticky="ew", padx=8, pady=4)
+        tg_frame.grid(row=3, column=0, sticky="ew", padx=8, pady=4)
         tg_frame.grid_columnconfigure(1, weight=1)
 
         self._tg_status_label = ctk.CTkLabel(
@@ -277,9 +326,10 @@ class App(ctk.CTk):
         )
         test_btn.grid(row=0, column=2, padx=8, pady=4)
 
+        # --- Bottom status bar ---
         events_dir = self._watcher._events_dir
         status_frame = ctk.CTkFrame(self, height=24, fg_color=("gray90", "gray17"))
-        status_frame.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
+        status_frame.grid(row=4, column=0, sticky="ew", padx=0, pady=0)
 
         self._path_label = ctk.CTkLabel(
             status_frame, text=f"Папка: {events_dir}",
@@ -295,6 +345,39 @@ class App(ctk.CTk):
         self._queue_label.pack(side="right", padx=8, pady=2)
 
         self.after(500, self._check_telegram_status)
+
+    # --- Settings handlers ---
+
+    def _toggle_token_visibility(self):
+        if self._token_entry.cget("show") == "*":
+            self._token_entry.configure(show="")
+            self._show_token_btn.configure(text="Скрыть")
+        else:
+            self._token_entry.configure(show="*")
+            self._show_token_btn.configure(text="Показать")
+
+    def _save_settings(self):
+        token = self._token_entry.get().strip()
+        chat_id = self._chatid_entry.get().strip()
+
+        self._config["telegram_bot_token"] = token
+        self._config["telegram_chat_id"] = chat_id
+        try:
+            CONFIG_PATH.write_text(
+                json.dumps(self._config, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            log.info("Config saved to %s", CONFIG_PATH)
+        except Exception as exc:
+            log.error("Failed to save config: %s", exc)
+
+        self._sender.reconfigure(token, chat_id)
+        self._check_telegram_status()
+
+        self._save_btn.configure(text="Сохранено", state="disabled")
+        self.after(2000, lambda: self._save_btn.configure(text="Сохранить", state="normal"))
+
+    # --- Telegram ---
 
     def _check_telegram_status(self):
         def _check():
@@ -312,6 +395,8 @@ class App(ctk.CTk):
             if ok:
                 self._gui_queue.put(("sent_count", self._sender.sent_count))
         threading.Thread(target=_send, daemon=True).start()
+
+    # --- GUI queue ---
 
     def _poll_gui_queue(self):
         try:
@@ -342,6 +427,8 @@ class App(ctk.CTk):
             log.error("GUI queue error: %s", exc)
 
         self.after(200, self._poll_gui_queue)
+
+    # --- Window / tray ---
 
     def _on_close(self):
         if self._try_minimize_to_tray():

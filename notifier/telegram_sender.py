@@ -13,12 +13,15 @@ RETRY_BASE_SEC = 2
 
 
 class TelegramSender:
-    def __init__(self, token: str, chat_id: str):
-        self._token = token
-        self._chat_id = chat_id
-        self._base = f"https://api.telegram.org/bot{token}"
-        self._ok = bool(token and chat_id)
+    def __init__(self, token: str = "", chat_id: str = ""):
         self.sent_count = 0
+        self.reconfigure(token, chat_id)
+
+    def reconfigure(self, token: str, chat_id: str) -> None:
+        self._token = token.strip()
+        self._chat_id = chat_id.strip()
+        self._base = f"https://api.telegram.org/bot{self._token}"
+        self._ok = bool(self._token and self._chat_id)
 
     @property
     def configured(self) -> bool:
