@@ -32,6 +32,20 @@ class TerminalStatus:
         self.raw = data
 
 
+class TradingViewSource:
+    """Tracks heartbeat data for a TradingView indicator/symbol/timeframe combo."""
+
+    def __init__(self, data: dict):
+        self.indicator: str = data.get("indicator", "")
+        self.symbol: str = data.get("symbol", "")
+        self.exchange: str = data.get("exchange", "")
+        self.timeframe: str = data.get("timeframe", "")
+        self.last_signal: str = data.get("last_signal", "")
+        self.last_signal_time: str = data.get("last_signal_time", "")
+        self.price: float = data.get("price", 0)
+        self.last_seen = datetime.now()
+
+
 class EventWatcher:
     """Watches tg_events/ directory and dispatches events."""
 
@@ -55,6 +69,7 @@ class EventWatcher:
         self._retention_days = retention_days
 
         self._terminals: dict[str, TerminalStatus] = {}
+        self._tv_sources: dict[str, TradingViewSource] = {}
         self._known_events: set[str] = set()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -64,6 +79,11 @@ class EventWatcher:
     def terminals(self) -> dict[str, TerminalStatus]:
         with self._lock:
             return dict(self._terminals)
+
+    @property
+    def tv_sources(self) -> dict[str, TradingViewSource]:
+        with self._lock:
+            return dict(self._tv_sources)
 
     def start(self):
         self._events_dir.mkdir(parents=True, exist_ok=True)
@@ -106,20 +126,35 @@ class EventWatcher:
             pass
 
     def _read_heartbeats(self):
+        mt5_changed = False
+        tv_changed = False
+
         try:
             for p in self._events_dir.glob("heartbeat_*.json"):
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                if data.get("source") == "tradingview" or p.name.startswith("heartbeat_tv_"):
+                    src = TradingViewSource(data)
+                    key = p.stem.removeprefix("heartbeat_tv_")
+                    with self._lock:
+                        self._tv_sources[key] = src
+                    tv_changed = True
+                else:
                     chart_id = data.get("chart_id", p.stem)
                     status = TerminalStatus(data)
                     with self._lock:
                         self._terminals[chart_id] = status
-                except (json.JSONDecodeError, OSError):
-                    continue
+                    mt5_changed = True
         except Exception as exc:
             log.warning("heartbeat scan error: %s", exc)
 
-        self._gui_queue.put(("terminals_updated", None))
+        if mt5_changed:
+            self._gui_queue.put(("terminals_updated", None))
+        if tv_changed:
+            self._gui_queue.put(("tv_sources_updated", None))
 
     def _process_new_events(self):
         try:
@@ -188,6 +223,19 @@ class EventWatcher:
         if ts is None:
             return "dead"
         age = (datetime.now() - ts.last_seen).total_seconds()
+        if age < self._heartbeat_timeout:
+            return "ok"
+        if age < self._heartbeat_dead:
+            return "warn"
+        return "dead"
+
+    def get_tv_source_status(self, key: str) -> str:
+        """Return 'ok', 'warn', or 'dead' for a TradingView source."""
+        with self._lock:
+            src = self._tv_sources.get(key)
+        if src is None:
+            return "dead"
+        age = (datetime.now() - src.last_seen).total_seconds()
         if age < self._heartbeat_timeout:
             return "ok"
         if age < self._heartbeat_dead:

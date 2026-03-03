@@ -1,0 +1,10 @@
+{
+  "source": "tradingview",
+  "indicator": "Webhook Test",
+  "symbol": "TEST",
+  "exchange": "TEST",
+  "timeframe": "1",
+  "last_signal": "single_bar_up",
+  "last_signal_time": "2026.02.28 13:16:47",
+  "price": 1.2345
+}

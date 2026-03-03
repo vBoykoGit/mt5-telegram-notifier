@@ -5,5 +5,11 @@
   "poll_interval_sec": 2,
   "heartbeat_timeout_sec": 60,
   "heartbeat_dead_sec": 120,
-  "processed_retention_days": 7
+  "processed_retention_days": 7,
+  "webhook_enabled": true,
+  "webhook_port": 8080,
+  "webhook_secret": "",
+  "webhook_public_url": "",
+  "chart_screenshot_wait_sec": 5,
+  "ea_source_path": ""
 }

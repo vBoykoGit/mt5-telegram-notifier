@@ -1,0 +1,12 @@
+{
+  "source": "tradingview",
+  "event": "tv_single_bar_up",
+  "indicator": "Webhook Test",
+  "signal": "single_bar_up",
+  "symbol": "TEST",
+  "exchange": "TEST",
+  "timeframe": "1",
+  "price": 1.2345,
+  "time": "2026.02.28 13:16:41",
+  "screenshot": "evt_tv_20260228_101641_single_bar_up_TEST.png"
+}

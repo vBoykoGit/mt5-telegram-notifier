@@ -1,4 +1,4 @@
-"""Format MT5 trade events into Telegram HTML messages."""
+"""Format MT5 trade events and TradingView signals into Telegram HTML messages."""
 
 from datetime import datetime
 
@@ -11,6 +11,17 @@ EVENT_TITLES = {
     "manual_close": "Ручное закрытие",
     "ea_close": "Закрытие советником",
     "other_close": "Закрытие позиции",
+}
+
+TV_SIGNAL_TITLES = {
+    "saucer_buy": "AO Saucer Buy",
+    "saucer_sell": "AO Saucer Sell",
+    "wma_cross_up": "AO WMA Cross Up",
+    "wma_cross_down": "AO WMA Cross Down",
+    "higher_peak": "AO Higher Peak",
+    "lower_peak": "AO Lower Peak",
+    "single_bar_up": "AO Single Bar Up",
+    "single_bar_down": "AO Single Bar Down",
 }
 
 
@@ -91,8 +102,46 @@ def format_close(event: dict) -> str:
     return "\n".join(lines)
 
 
+def format_tv_event(event: dict) -> str:
+    """Format a TradingView signal into an HTML Telegram message."""
+    signal = event.get("signal", "")
+    title = TV_SIGNAL_TITLES.get(signal, signal)
+    indicator = event.get("indicator", "TradingView")
+    symbol = event.get("symbol", "")
+    exchange = event.get("exchange", "")
+    tf = event.get("timeframe", "")
+    price = event.get("price", 0)
+
+    tag = f"{exchange}:{symbol}" if exchange else symbol
+    lines = [
+        f"<b>{title}</b>  [TV &gt; {tag} {tf}]",
+        f"Индикатор: {indicator}",
+        f"Цена: {price}",
+    ]
+    return "\n".join(lines)
+
+
+def format_tv_log_line(event: dict) -> str:
+    """Short one-line summary for a TradingView signal."""
+    signal = event.get("signal", "")
+    title = TV_SIGNAL_TITLES.get(signal, signal)
+    symbol = event.get("symbol", "")
+    tf = event.get("timeframe", "")
+    price = event.get("price", 0)
+    time_str = event.get("time", "")
+    try:
+        t = datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
+        time_short = t.strftime("%H:%M")
+    except (ValueError, TypeError):
+        time_short = time_str[:5] if time_str else "??:??"
+
+    return f"{time_short}  [TV > {symbol} {tf}]  {title}  @ {price}"
+
+
 def format_event(event: dict) -> str:
     """Return formatted HTML string for any event type."""
+    if event.get("source") == "tradingview":
+        return format_tv_event(event)
     evt = event.get("event", "")
     if evt == "position_opened":
         return format_position_opened(event)
@@ -103,6 +152,9 @@ def format_event(event: dict) -> str:
 
 def format_log_line(event: dict) -> str:
     """Short one-line summary for the GUI event log."""
+    if event.get("source") == "tradingview":
+        return format_tv_log_line(event)
+
     evt = event.get("event", "")
     terminal = event.get("terminal_name", "?")
     symbol = event.get("symbol", "")
