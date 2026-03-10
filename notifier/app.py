@@ -776,13 +776,21 @@ class App(ctk.CTk):
         self._scan_status_label.configure(text="Поиск...", text_color=("gray40", "gray60"))
 
         def run():
-            terminals = discover_terminals()
-            self.after(0, lambda: self._on_scan_done(terminals))
+            try:
+                terminals = discover_terminals()
+                self.after(0, lambda: self._on_scan_done(terminals, None))
+            except ImportError as exc:
+                self.after(0, lambda: self._on_scan_done([], str(exc)))
+            except Exception as exc:
+                self.after(0, lambda: self._on_scan_done([], f"Ошибка: {exc}"))
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_scan_done(self, terminals: list[TerminalInfo]) -> None:
+    def _on_scan_done(self, terminals: list[TerminalInfo], error: str | None) -> None:
         self._scan_btn.configure(state="normal")
+        if error:
+            self._scan_status_label.configure(text=error, text_color="#ef4444")
+            return
         count = len(terminals)
         if count:
             self._scan_status_label.configure(

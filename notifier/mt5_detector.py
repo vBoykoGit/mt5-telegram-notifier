@@ -51,7 +51,13 @@ def _build_origin_map() -> dict[str, Path]:
         if not origin.is_file():
             continue
         try:
-            install_path = origin.read_text(encoding="utf-8").strip()
+            raw = origin.read_bytes()
+            if raw[:2] == b"\xff\xfe":
+                install_path = raw.decode("utf-16-le").strip().lstrip("\ufeff")
+            elif raw[:2] == b"\xfe\xff":
+                install_path = raw.decode("utf-16-be").strip().lstrip("\ufeff")
+            else:
+                install_path = raw.decode("utf-8").strip().lstrip("\ufeff")
         except Exception:
             continue
         result[os.path.normcase(install_path)] = sub
@@ -67,8 +73,7 @@ def discover_terminals() -> list[TerminalInfo]:
     try:
         import psutil
     except ImportError:
-        log.warning("psutil not installed; cannot detect running terminals")
-        return []
+        raise ImportError("psutil не установлен. Выполните: pip install psutil")
 
     origin_map = _build_origin_map()
     if not origin_map:
